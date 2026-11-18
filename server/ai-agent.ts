@@ -1,7 +1,9 @@
-import { GoogleGenAI } from "@google/genai";
+import { ApiError, GoogleGenAI } from "@google/genai";
 import type { GeneratePoemRequest } from "@shared/schema";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// "-latest" aliases follow Google's current Flash model, so the app keeps
+// working when a specific version (e.g. gemini-2.5-flash) is retired.
+const DEFAULT_MODEL = "gemini-flash-latest";
 
 const SYSTEM_PROMPT =
   "You are a talented poet who creates beautiful, personalized poems for special occasions. Your poems should be heartfelt, well-structured, and appropriate for the given event and style. Always create original content that captures the emotion and significance of the occasion. Reply with the poem only, with no preamble or commentary.";
@@ -23,33 +25,88 @@ export interface PoemGenerationResult {
   error?: string;
 }
 
+// Cached after a successful lookup so we only list models once.
+let discoveredModel: string | null = null;
+
+// Ask the API which models this key can use and pick a current Flash model.
+async function discoverModel(ai: GoogleGenAI): Promise<string | null> {
+  const candidates: string[] = [];
+  for await (const m of await ai.models.list()) {
+    const name = (m.name || "").replace(/^models\//, "");
+    if (
+      /^gemini-[\d.]+-flash$/.test(name) &&
+      (m.supportedActions || []).includes("generateContent")
+    ) {
+      candidates.push(name);
+    }
+  }
+  // Highest version first (e.g. gemini-3-flash before gemini-2.5-flash)
+  candidates.sort((a, b) =>
+    parseFloat(b.split("-")[1]) - parseFloat(a.split("-")[1]),
+  );
+  return candidates[0] ?? null;
+}
+
 export class AIAgent {
+  constructor() {
+    console.log(
+      getApiKey()
+        ? "[ai] Gemini API key found - AI poem generation enabled"
+        : "[ai] No GEMINI_API_KEY set - using template poems only",
+    );
+  }
+
+  private fallback(request: GeneratePoemRequest, reason: string): PoemGenerationResult {
+    // Always say why a template poem was used, so it shows up in host logs.
+    console.warn(`[ai] Using template poem: ${reason}`);
+    return {
+      content: this.generateFallbackPoem(request),
+      success: false,
+      error: reason,
+    };
+  }
+
+  private async generate(ai: GoogleGenAI, model: string, prompt: string) {
+    // Gemini 2.5+ models "think" by default and thinking tokens count
+    // towards maxOutputTokens, so leave headroom for a short poem.
+    return ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        maxOutputTokens: 4000,
+        temperature: 0.8,
+      },
+    });
+  }
+
   async generatePoem(request: GeneratePoemRequest): Promise<PoemGenerationResult> {
     const apiKey = getApiKey();
 
-    // No key is a supported configuration, not an error: use template poems.
+    // No key is a supported configuration: use template poems.
     if (!apiKey) {
-      return {
-        content: this.generateFallbackPoem(request),
-        success: false,
-        error: "GEMINI_API_KEY is not set",
-      };
+      return this.fallback(request, "GEMINI_API_KEY is not set");
     }
 
     try {
+      const ai = getClient(apiKey);
       const prompt = this.buildPrompt(request);
+      let model = process.env.GEMINI_MODEL || discoveredModel || DEFAULT_MODEL;
 
-      // Gemini 2.5 models "think" by default and thinking tokens count
-      // towards maxOutputTokens, so leave headroom for a short poem.
-      const response = await getClient(apiKey).models.generateContent({
-        model: process.env.GEMINI_MODEL || DEFAULT_MODEL,
-        contents: prompt,
-        config: {
-          systemInstruction: SYSTEM_PROMPT,
-          maxOutputTokens: 4000,
-          temperature: 0.8,
-        },
-      });
+      let response;
+      try {
+        response = await this.generate(ai, model, prompt);
+      } catch (error) {
+        // 404 = model name retired/unknown. Look up a current one and retry once.
+        if (!(error instanceof ApiError && error.status === 404)) throw error;
+        console.warn(`[ai] Model "${model}" not found; looking up an available one`);
+        const found = await discoverModel(ai);
+        if (!found) throw error;
+        console.warn(`[ai] Using model "${found}" (set GEMINI_MODEL to pin one)`);
+        model = found;
+        response = await this.generate(ai, model, prompt);
+        discoveredModel = model;
+      }
 
       // response.text is empty when the prompt or output was blocked
       // (e.g. by safety filters) or the model returned no text.
@@ -60,23 +117,16 @@ export class AIAgent {
           response.promptFeedback?.blockReason ||
           response.candidates?.[0]?.finishReason ||
           "No poem content generated";
-        return {
-          content: this.generateFallbackPoem(request),
-          success: false,
-          error: String(reason),
-        };
+        return this.fallback(request, `Gemini returned no text (${reason})`);
       }
 
       return { content, success: true };
     } catch (error) {
       console.error("AI poem generation failed:", error);
-
-      // Fallback to template-based generation if AI fails
-      return {
-        content: this.generateFallbackPoem(request),
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-      };
+      return this.fallback(
+        request,
+        error instanceof Error ? error.message : "Unknown error occurred",
+      );
     }
   }
 
