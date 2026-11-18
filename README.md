@@ -25,8 +25,8 @@ PoemCraftAI is a project aimed at providing an AI-powered poetry creation platfo
 - **postcss.config.js**  
   Configuration for PostCSS, likely used for CSS processing.
 
-- **replit.md**  
-  Documentation or instructions for running the project on Replit.
+- **ARCHITECTURE.md**  
+  Overview of the application's architecture, components and data flow.
 
 - **tailwind.config.ts**  
   Configuration for Tailwind CSS to style the UI.
@@ -53,6 +53,24 @@ PoemCraftAI is a project aimed at providing an AI-powered poetry creation platfo
    ```bash
    npm run build
    ```
+
+## Configuration
+
+Copy `.env.example` and set the variables in your environment (or your host's settings):
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | No | Enables AI poem generation. Without it, built-in template poems are used. |
+| `PORT` | No | Port to listen on (default `5000`). Most hosts set this automatically. |
+| `DATABASE_URL` | No | Only used by `npm run db:push`. Poems are currently stored in memory. |
+
+## Deployment
+
+Requires Node.js 20.11+. Any Node host works (Render, Railway, Fly.io, a VPS, Docker, ...):
+
+- **Build command:** `npm ci --include=dev && npm run build` (the build needs dev dependencies)
+- **Start command:** `npm start`
+- Set `OPENAI_API_KEY` in the host's environment. `GET /api/health` can be used as the health check.
 
 ## Technologies Used
 
