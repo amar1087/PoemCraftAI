@@ -7,9 +7,6 @@ import type { GeneratePoemRequest } from "@shared/schema";
 // poem generation falls back to the built-in templates.
 let openaiClient: OpenAI | null = null;
 function getOpenAI(): OpenAI {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
   return (openaiClient ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY }));
 }
 
@@ -21,6 +18,15 @@ export interface PoemGenerationResult {
 
 export class AIAgent {
   async generatePoem(request: GeneratePoemRequest): Promise<PoemGenerationResult> {
+    // No key is a supported configuration, not an error: use template poems.
+    if (!process.env.OPENAI_API_KEY) {
+      return {
+        content: this.generateFallbackPoem(request),
+        success: false,
+        error: "OPENAI_API_KEY is not set",
+      };
+    }
+
     try {
       const prompt = this.buildPrompt(request);
       

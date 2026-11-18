@@ -39,12 +39,13 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
     console.error(err);
-    if (res.headersSent) return;
+    // Let Express close a response that was already partially sent
+    if (res.headersSent) return next(err);
     res.status(status).json({ message });
   });
 
@@ -58,7 +59,10 @@ app.use((req, res, next) => {
   }
 
   // Serves both the API and the client. Hosting platforms inject PORT.
-  const port = Number(process.env.PORT) || 5000;
+  const port = process.env.PORT ? Number(process.env.PORT) : 5000;
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new Error(`Invalid PORT value: ${process.env.PORT}`);
+  }
   server.listen({
     port,
     host: "0.0.0.0",

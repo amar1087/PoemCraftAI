@@ -56,7 +56,7 @@ PoemCraftAI is a project aimed at providing an AI-powered poetry creation platfo
 
 ## Configuration
 
-Copy `.env.example` and set the variables in your environment (or your host's settings):
+The server reads these from the process environment and does not load `.env` files. Export them in your shell (see `.env.example`) or set them in your host's settings:
 
 | Variable | Required | Description |
 | --- | --- | --- |
@@ -73,7 +73,13 @@ the publish directory to `dist/public`, where Vite writes `index.html` and the
 client assets. Publishing the parent `dist` directory places the homepage at
 `/public/` instead of `/` and causes the site root to return a 404.
 
-### Node hosting
+### Render
+
+`render.yaml` defines a web service. In Render choose **New > Blueprint**, select this
+repository, and enter `OPENAI_API_KEY` when prompted. Poems are stored in memory, so they
+reset on every restart or redeploy, and the app must run as a single instance.
+
+### Other Node hosts
 
 Requires Node.js 20.11+. Any Node host works (Render, Railway, Fly.io, a VPS, Docker, ...):
 
