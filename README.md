@@ -66,6 +66,15 @@ Copy `.env.example` and set the variables in your environment (or your host's se
 
 ## Deployment
 
+### Netlify
+
+The repository's `netlify.toml` sets the build command to `npm run build` and
+the publish directory to `dist/public`, where Vite writes `index.html` and the
+client assets. Publishing the parent `dist` directory places the homepage at
+`/public/` instead of `/` and causes the site root to return a 404.
+
+### Node hosting
+
 Requires Node.js 20.11+. Any Node host works (Render, Railway, Fly.io, a VPS, Docker, ...):
 
 - **Build command:** `npm ci --include=dev && npm run build` (the build needs dev dependencies)
