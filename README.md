@@ -61,7 +61,7 @@ The server reads these from the process environment and does not load `.env` fil
 | Variable | Required | Description |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | No | Google Gemini API key (free from [Google AI Studio](https://aistudio.google.com/apikey)). Enables AI poem generation. `GOOGLE_API_KEY` is also accepted. Without a key, built-in template poems are used. |
-| `GEMINI_MODEL` | No | Gemini model to use (default `gemini-2.5-flash`). |
+| `GEMINI_MODEL` | No | Gemini model to use (default `gemini-flash-latest`). |
 | `PORT` | No | Port to listen on (default `5000`). Most hosts set this automatically. |
 | `DATABASE_URL` | No | Only used by `npm run db:push`. Poems are currently stored in memory. |
 
