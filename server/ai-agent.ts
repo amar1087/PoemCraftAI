@@ -1,16 +1,20 @@
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import type { GeneratePoemRequest } from "@shared/schema";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-// Created lazily: the OpenAI constructor throws when OPENAI_API_KEY is unset,
-// which would otherwise crash the whole server at startup. Without a key,
-// poem generation falls back to the built-in templates.
-let openaiClient: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not set");
-  }
-  return (openaiClient ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY }));
+const DEFAULT_MODEL = "gemini-2.5-flash";
+
+const SYSTEM_PROMPT =
+  "You are a talented poet who creates beautiful, personalized poems for special occasions. Your poems should be heartfelt, well-structured, and appropriate for the given event and style. Always create original content that captures the emotion and significance of the occasion. Reply with the poem only, with no preamble or commentary.";
+
+function getApiKey(): string | undefined {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || undefined;
+}
+
+// Created lazily so the server can start without an API key.
+// Without a key, poem generation falls back to the built-in templates.
+let client: GoogleGenAI | null = null;
+function getClient(apiKey: string): GoogleGenAI {
+  return (client ??= new GoogleGenAI({ apiKey }));
 }
 
 export interface PoemGenerationResult {
@@ -21,49 +25,57 @@ export interface PoemGenerationResult {
 
 export class AIAgent {
   async generatePoem(request: GeneratePoemRequest): Promise<PoemGenerationResult> {
+    const apiKey = getApiKey();
+
+    // No key is a supported configuration, not an error: use template poems.
+    if (!apiKey) {
+      return {
+        content: this.generateFallbackPoem(request),
+        success: false,
+        error: "GEMINI_API_KEY is not set",
+      };
+    }
+
     try {
       const prompt = this.buildPrompt(request);
-      
-      const response = await getOpenAI().chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are a talented poet who creates beautiful, personalized poems for special occasions. Your poems should be heartfelt, well-structured, and appropriate for the given event and style. Always create original content that captures the emotion and significance of the occasion."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 500,
-        temperature: 0.8,
+
+      // Gemini 2.5 models "think" by default and thinking tokens count
+      // towards maxOutputTokens, so leave headroom for a short poem.
+      const response = await getClient(apiKey).models.generateContent({
+        model: process.env.GEMINI_MODEL || DEFAULT_MODEL,
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          maxOutputTokens: 4000,
+          temperature: 0.8,
+        },
       });
 
-      const content = response.choices[0]?.message?.content;
-      
+      // response.text is empty when the prompt or output was blocked
+      // (e.g. by safety filters) or the model returned no text.
+      const content = response.text?.trim();
+
       if (!content) {
+        const reason =
+          response.promptFeedback?.blockReason ||
+          response.candidates?.[0]?.finishReason ||
+          "No poem content generated";
         return {
-          content: "",
+          content: this.generateFallbackPoem(request),
           success: false,
-          error: "No poem content generated"
+          error: String(reason),
         };
       }
 
-      return {
-        content: content.trim(),
-        success: true
-      };
+      return { content, success: true };
     } catch (error) {
       console.error("AI poem generation failed:", error);
-      
+
       // Fallback to template-based generation if AI fails
-      const fallbackContent = this.generateFallbackPoem(request);
-      
       return {
-        content: fallbackContent,
+        content: this.generateFallbackPoem(request),
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred"
+        error: error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }

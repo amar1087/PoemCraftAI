@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: poemcraftai
+    runtime: node
+    plan: free
+    # The build needs devDependencies (vite, tailwind, esbuild), which Render
+    # skips by default when NODE_ENV=production.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: GEMINI_API_KEY
+        sync: false

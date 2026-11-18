@@ -56,11 +56,12 @@ PoemCraftAI is a project aimed at providing an AI-powered poetry creation platfo
 
 ## Configuration
 
-Copy `.env.example` and set the variables in your environment (or your host's settings):
+The server reads these from the process environment and does not load `.env` files. Export them in your shell (see `.env.example`) or set them in your host's settings:
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | No | Enables AI poem generation. Without it, built-in template poems are used. |
+| `GEMINI_API_KEY` | No | Google Gemini API key (free from [Google AI Studio](https://aistudio.google.com/apikey)). Enables AI poem generation. `GOOGLE_API_KEY` is also accepted. Without a key, built-in template poems are used. |
+| `GEMINI_MODEL` | No | Gemini model to use (default `gemini-2.5-flash`). |
 | `PORT` | No | Port to listen on (default `5000`). Most hosts set this automatically. |
 | `DATABASE_URL` | No | Only used by `npm run db:push`. Poems are currently stored in memory. |
 
@@ -73,13 +74,19 @@ the publish directory to `dist/public`, where Vite writes `index.html` and the
 client assets. Publishing the parent `dist` directory places the homepage at
 `/public/` instead of `/` and causes the site root to return a 404.
 
-### Node hosting
+### Render
+
+`render.yaml` defines a web service. In Render choose **New > Blueprint**, select this
+repository, and enter `GEMINI_API_KEY` when prompted. Poems are stored in memory, so they
+reset on every restart or redeploy, and the app must run as a single instance.
+
+### Other Node hosts
 
 Requires Node.js 20.11+. Any Node host works (Render, Railway, Fly.io, a VPS, Docker, ...):
 
 - **Build command:** `npm ci --include=dev && npm run build` (the build needs dev dependencies)
 - **Start command:** `npm start`
-- Set `OPENAI_API_KEY` in the host's environment. `GET /api/health` can be used as the health check.
+- Set `GEMINI_API_KEY` in the host's environment. `GET /api/health` can be used as the health check.
 
 ## Technologies Used
 
