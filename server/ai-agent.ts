@@ -2,9 +2,16 @@ import OpenAI from "openai";
 import type { GeneratePoemRequest } from "@shared/schema";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY 
-});
+// Created lazily: the OpenAI constructor throws when OPENAI_API_KEY is unset,
+// which would otherwise crash the whole server at startup. Without a key,
+// poem generation falls back to the built-in templates.
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set");
+  }
+  return (openaiClient ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY }));
+}
 
 export interface PoemGenerationResult {
   content: string;
@@ -17,7 +24,7 @@ export class AIAgent {
     try {
       const prompt = this.buildPrompt(request);
       
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
         messages: [
           {

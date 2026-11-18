@@ -1,4 +1,4 @@
-# Replit.md - Poem Generator Application
+# Architecture - Poem Generator Application
 
 ## Overview
 

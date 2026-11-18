@@ -6,6 +6,11 @@ import { aiAgent } from "./ai-agent";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check for hosting platforms
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok" });
+  });
+
   // Generate poem endpoint
   app.post("/api/poems/generate", async (req, res) => {
     try {
