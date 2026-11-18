@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a full-stack poem generator application built with React, TypeScript, Express, and Drizzle ORM. The application allows users to generate personalized poems for various events and occasions using Anthropic's Claude for AI-powered text generation. It features a modern UI built with shadcn/ui components and Tailwind CSS styling.
+This is a full-stack poem generator application built with React, TypeScript, Express, and Drizzle ORM. The application allows users to generate personalized poems for various events and occasions using Google's Gemini for AI-powered text generation. It features a modern UI built with shadcn/ui components and Tailwind CSS styling.
 
 ## User Preferences
 
@@ -50,7 +50,7 @@ Located in `shared/schema.ts`:
 ### Backend Services
 - **Storage Layer**: Abstracted storage interface with in-memory implementation
 - **Route Handlers**: RESTful API endpoints for poem operations
-- **AI Agent**: Server-side Anthropic Claude integration for poem generation
+- **AI Agent**: Server-side Google Gemini integration for poem generation
 - **AI Service**: Client-side TensorFlow.js placeholder for future enhancements
 
 ### API Endpoints
@@ -60,18 +60,18 @@ Located in `shared/schema.ts`:
 
 ## Data Flow
 
-1. **Poem Generation**: User fills form → Frontend validates → API request → Claude generation → Database storage → Response display
+1. **Poem Generation**: User fills form → Frontend validates → API request → Gemini generation → Database storage → Response display
 2. **Recent Poems**: Component mount → Query recent poems → Display list with metadata
 3. **State Management**: TanStack Query handles caching, background updates, and error states
 4. **Form Validation**: React Hook Form + Zod for client-side validation before API calls
-5. **AI Generation**: Backend AIAgent handles Anthropic API calls with fallback templates
+5. **AI Generation**: Backend AIAgent handles Gemini API calls with fallback templates
 
 ## External Dependencies
 
 ### Core Dependencies
 - **@neondatabase/serverless**: PostgreSQL database connection
 - **drizzle-orm**: Type-safe database queries
-- **@anthropic-ai/sdk**: Anthropic Claude API integration
+- **@google/genai**: Google Gemini API integration
 - **@tensorflow/tfjs**: Client-side AI capabilities (future use)
 - **@tanstack/react-query**: Server state management
 - **@radix-ui/***: Accessible UI primitives
@@ -101,7 +101,7 @@ Located in `shared/schema.ts`:
 - **Development**: Uses Vite dev server with Express middleware
 - **Production**: Serves static files from `dist/public`
 - **Database**: Requires `DATABASE_URL` environment variable
-- **AI Service**: Requires `ANTHROPIC_API_KEY` environment variable for poem generation
+- **AI Service**: Requires `GEMINI_API_KEY` environment variable for poem generation
 
 ### Key Features
 - **Children's Poems Section**: Dedicated category with 5 themes (Animals, Toys, Characters, Nature, Activities)

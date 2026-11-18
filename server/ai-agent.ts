@@ -1,16 +1,20 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import type { GeneratePoemRequest } from "@shared/schema";
 
-const DEFAULT_MODEL = "claude-opus-5-5";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 const SYSTEM_PROMPT =
   "You are a talented poet who creates beautiful, personalized poems for special occasions. Your poems should be heartfelt, well-structured, and appropriate for the given event and style. Always create original content that captures the emotion and significance of the occasion. Reply with the poem only, with no preamble or commentary.";
 
-// Created lazily so the server can start without ANTHROPIC_API_KEY.
+function getApiKey(): string | undefined {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || undefined;
+}
+
+// Created lazily so the server can start without an API key.
 // Without a key, poem generation falls back to the built-in templates.
-let anthropicClient: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  return (anthropicClient ??= new Anthropic());
+let client: GoogleGenAI | null = null;
+function getClient(apiKey: string): GoogleGenAI {
+  return (client ??= new GoogleGenAI({ apiKey }));
 }
 
 export interface PoemGenerationResult {
@@ -21,57 +25,45 @@ export interface PoemGenerationResult {
 
 export class AIAgent {
   async generatePoem(request: GeneratePoemRequest): Promise<PoemGenerationResult> {
+    const apiKey = getApiKey();
+
     // No key is a supported configuration, not an error: use template poems.
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!apiKey) {
       return {
         content: this.generateFallbackPoem(request),
         success: false,
-        error: "ANTHROPIC_API_KEY is not set",
+        error: "GEMINI_API_KEY is not set",
       };
     }
 
     try {
       const prompt = this.buildPrompt(request);
-      const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 
-      // Thinking is always on for Claude Opus 5.5, and thinking tokens count
-      // towards max_tokens, so leave generous headroom for a short poem.
-      // Sampling parameters (temperature etc.) are not accepted on this model.
-      const response = await getAnthropic().beta.messages.create({
-        model,
-        max_tokens: 4000,
-        system: SYSTEM_PROMPT,
-        output_config: { effort: "low" },
-        messages: [{ role: "user", content: prompt }],
-        // If a safety classifier declines the request, let the API retry it
-        // on a fallback model instead of failing.
-        ...(model === DEFAULT_MODEL
-          ? {
-              betas: ["server-side-fallback-2026-07-01"],
-              fallbacks: "default" as const,
-            }
-          : {}),
+      // Gemini 2.5 models "think" by default and thinking tokens count
+      // towards maxOutputTokens, so leave headroom for a short poem.
+      const response = await getClient(apiKey).models.generateContent({
+        model: process.env.GEMINI_MODEL || DEFAULT_MODEL,
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_PROMPT,
+          maxOutputTokens: 4000,
+          temperature: 0.8,
+        },
       });
 
-      if (response.stop_reason === "refusal") {
-        return {
-          content: this.generateFallbackPoem(request),
-          success: false,
-          error: "The request was declined by the model",
-        };
-      }
-
-      const content = response.content
-        .filter((block) => block.type === "text")
-        .map((block) => block.text)
-        .join("")
-        .trim();
+      // response.text is empty when the prompt or output was blocked
+      // (e.g. by safety filters) or the model returned no text.
+      const content = response.text?.trim();
 
       if (!content) {
+        const reason =
+          response.promptFeedback?.blockReason ||
+          response.candidates?.[0]?.finishReason ||
+          "No poem content generated";
         return {
           content: this.generateFallbackPoem(request),
           success: false,
-          error: "No poem content generated",
+          error: String(reason),
         };
       }
 

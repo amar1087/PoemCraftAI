@@ -122,7 +122,7 @@ export default function Home() {
               <span className="text-slate-600 font-medium">PoemCraft</span>
             </div>
             <div className="flex items-center space-x-6 text-slate-500">
-              <span className="text-sm">Powered by Claude</span>
+              <span className="text-sm">Powered by Google Gemini</span>
               <span className="text-sm">•</span>
               <span className="text-sm">AI Poetry Generation</span>
             </div>

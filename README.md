@@ -60,8 +60,8 @@ The server reads these from the process environment and does not load `.env` fil
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | No | Enables AI poem generation with Claude. Without it, built-in template poems are used. |
-| `ANTHROPIC_MODEL` | No | Claude model to use (default `claude-opus-5-5`). For a cheaper option try `claude-haiku-5-5`. |
+| `GEMINI_API_KEY` | No | Google Gemini API key (free from [Google AI Studio](https://aistudio.google.com/apikey)). Enables AI poem generation. `GOOGLE_API_KEY` is also accepted. Without a key, built-in template poems are used. |
+| `GEMINI_MODEL` | No | Gemini model to use (default `gemini-2.5-flash`). |
 | `PORT` | No | Port to listen on (default `5000`). Most hosts set this automatically. |
 | `DATABASE_URL` | No | Only used by `npm run db:push`. Poems are currently stored in memory. |
 
@@ -77,7 +77,7 @@ client assets. Publishing the parent `dist` directory places the homepage at
 ### Render
 
 `render.yaml` defines a web service. In Render choose **New > Blueprint**, select this
-repository, and enter `ANTHROPIC_API_KEY` when prompted. Poems are stored in memory, so they
+repository, and enter `GEMINI_API_KEY` when prompted. Poems are stored in memory, so they
 reset on every restart or redeploy, and the app must run as a single instance.
 
 ### Other Node hosts
@@ -86,7 +86,7 @@ Requires Node.js 20.11+. Any Node host works (Render, Railway, Fly.io, a VPS, Do
 
 - **Build command:** `npm ci --include=dev && npm run build` (the build needs dev dependencies)
 - **Start command:** `npm start`
-- Set `ANTHROPIC_API_KEY` in the host's environment. `GET /api/health` can be used as the health check.
+- Set `GEMINI_API_KEY` in the host's environment. `GET /api/health` can be used as the health check.
 
 ## Technologies Used
 
