@@ -1,13 +1,16 @@
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import type { GeneratePoemRequest } from "@shared/schema";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-// Created lazily: the OpenAI constructor throws when OPENAI_API_KEY is unset,
-// which would otherwise crash the whole server at startup. Without a key,
-// poem generation falls back to the built-in templates.
-let openaiClient: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  return (openaiClient ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY }));
+const DEFAULT_MODEL = "claude-opus-5-5";
+
+const SYSTEM_PROMPT =
+  "You are a talented poet who creates beautiful, personalized poems for special occasions. Your poems should be heartfelt, well-structured, and appropriate for the given event and style. Always create original content that captures the emotion and significance of the occasion. Reply with the poem only, with no preamble or commentary.";
+
+// Created lazily so the server can start without ANTHROPIC_API_KEY.
+// Without a key, poem generation falls back to the built-in templates.
+let anthropicClient: Anthropic | null = null;
+function getAnthropic(): Anthropic {
+  return (anthropicClient ??= new Anthropic());
 }
 
 export interface PoemGenerationResult {
@@ -19,57 +22,68 @@ export interface PoemGenerationResult {
 export class AIAgent {
   async generatePoem(request: GeneratePoemRequest): Promise<PoemGenerationResult> {
     // No key is a supported configuration, not an error: use template poems.
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.ANTHROPIC_API_KEY) {
       return {
         content: this.generateFallbackPoem(request),
         success: false,
-        error: "OPENAI_API_KEY is not set",
+        error: "ANTHROPIC_API_KEY is not set",
       };
     }
 
     try {
       const prompt = this.buildPrompt(request);
-      
-      const response = await getOpenAI().chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are a talented poet who creates beautiful, personalized poems for special occasions. Your poems should be heartfelt, well-structured, and appropriate for the given event and style. Always create original content that captures the emotion and significance of the occasion."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 500,
-        temperature: 0.8,
+      const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
+
+      // Thinking is always on for Claude Opus 5.5, and thinking tokens count
+      // towards max_tokens, so leave generous headroom for a short poem.
+      // Sampling parameters (temperature etc.) are not accepted on this model.
+      const response = await getAnthropic().beta.messages.create({
+        model,
+        max_tokens: 4000,
+        system: SYSTEM_PROMPT,
+        output_config: { effort: "low" },
+        messages: [{ role: "user", content: prompt }],
+        // If a safety classifier declines the request, let the API retry it
+        // on a fallback model instead of failing.
+        ...(model === DEFAULT_MODEL
+          ? {
+              betas: ["server-side-fallback-2026-07-01"],
+              fallbacks: "default" as const,
+            }
+          : {}),
       });
 
-      const content = response.choices[0]?.message?.content;
-      
-      if (!content) {
+      if (response.stop_reason === "refusal") {
         return {
-          content: "",
+          content: this.generateFallbackPoem(request),
           success: false,
-          error: "No poem content generated"
+          error: "The request was declined by the model",
         };
       }
 
-      return {
-        content: content.trim(),
-        success: true
-      };
+      const content = response.content
+        .filter((block) => block.type === "text")
+        .map((block) => block.text)
+        .join("")
+        .trim();
+
+      if (!content) {
+        return {
+          content: this.generateFallbackPoem(request),
+          success: false,
+          error: "No poem content generated",
+        };
+      }
+
+      return { content, success: true };
     } catch (error) {
       console.error("AI poem generation failed:", error);
-      
+
       // Fallback to template-based generation if AI fails
-      const fallbackContent = this.generateFallbackPoem(request);
-      
       return {
-        content: fallbackContent,
+        content: this.generateFallbackPoem(request),
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred"
+        error: error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }
